@@ -3,7 +3,7 @@
 A full-stack microservices platform connecting farmers and buyers for crop trading, with order negotiation, online payments, and real-time notifications.
 
 ## Live Demo
-
+🌐 Live Demo: https://cropdeal-microservices.vercel.app
 > **Frontend:** [https://cropdeal-frontend.up.railway.app](https://cropdeal-frontend.up.railway.app) *(update after deployment)*
 > **API Gateway:** [https://cropdeal-gateway.up.railway.app](https://cropdeal-gateway.up.railway.app) *(update after deployment)*
 
