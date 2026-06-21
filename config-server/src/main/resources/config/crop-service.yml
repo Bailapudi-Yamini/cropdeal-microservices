@@ -1,0 +1,23 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: crop-service
+  datasource:
+    url: jdbc:mysql://localhost:3306/cropdeal_crops?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${DB_USER:root}
+    password: ${DB_PASS:root22}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+  data:
+    mongodb:
+      uri: ${MONGO_URI:mongodb://localhost:27017/cropdeal_crops}
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest

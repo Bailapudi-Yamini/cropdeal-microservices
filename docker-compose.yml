@@ -1,0 +1,400 @@
+name: cropdeal
+
+# ─────────────────────────────────────────────────────────────
+#  Reusable fragments
+# ─────────────────────────────────────────────────────────────
+x-spring-common: &spring-common
+  build:
+    context: .
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  networks:
+    - cropdeal-net
+  env_file: .env
+
+x-spring-env: &spring-env
+  SPRING_PROFILES_ACTIVE: prod
+  SPRING_CONFIG_IMPORT: "optional:configserver:http://config-server:8888"
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+  EUREKA_INSTANCE_PREFERIPADDRESS: "true"
+  DB_USER: ${MYSQL_USER}
+  DB_PASS: ${MYSQL_PASSWORD}
+  JWT_SECRET: ${JWT_SECRET}
+  SPRING_RABBITMQ_HOST: rabbitmq
+  SPRING_RABBITMQ_PORT: "5672"
+  SPRING_RABBITMQ_USERNAME: ${RABBITMQ_DEFAULT_USER}
+  SPRING_RABBITMQ_PASSWORD: ${RABBITMQ_DEFAULT_PASS}
+  RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
+  RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
+
+x-depends-on-infra: &depends-on-infra
+  mysql:
+    condition: service_healthy
+  rabbitmq:
+    condition: service_healthy
+  config-server:
+    condition: service_healthy
+  eureka-server:
+    condition: service_healthy
+
+x-business-healthcheck: &business-healthcheck
+  interval: 15s
+  timeout: 5s
+  retries: 10
+  start_period: 60s
+
+# ─────────────────────────────────────────────────────────────
+#  Services
+# ─────────────────────────────────────────────────────────────
+services:
+
+  # ── Infra: MySQL ─────────────────────────────────────────
+
+  mysql:
+    image: mysql:8.2
+    container_name: cropdeal-mysql
+    restart: unless-stopped
+    networks:
+      - cropdeal-net
+    env_file: .env
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── Infra: MongoDB ───────────────────────────────────────
+
+  mongodb:
+    image: mongo:7.0
+    container_name: cropdeal-mongodb
+    restart: unless-stopped
+    networks:
+      - cropdeal-net
+    env_file: .env
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: cropdeal_crops
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ── Infra: RabbitMQ ──────────────────────────────────────
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: cropdeal-rabbitmq
+    restart: unless-stopped
+    networks:
+      - cropdeal-net
+    env_file: .env
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ── Infra: Redis ─────────────────────────────────────────
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: cropdeal-redis
+    restart: unless-stopped
+    networks:
+      - cropdeal-net
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  # ── Layer 1: Config Server ───────────────────────────────
+  # Must be healthy before eureka and all business services start.
+
+  config-server:
+    <<: *spring-common
+    build:
+      context: ./config-server
+      dockerfile: ../Dockerfile
+    container_name: cropdeal-config-server
+    restart: unless-stopped
+    ports:
+      - "8888:8888"
+    environment:
+      SERVER_PORT: "8888"
+      SPRING_APPLICATION_NAME: config-server
+      SPRING_PROFILES_ACTIVE: native
+      EUREKA_CLIENT_REGISTER_WITH_EUREKA: "false"
+      EUREKA_CLIENT_FETCH_REGISTRY: "false"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+
+  # ── Layer 2: Eureka Server ───────────────────────────────
+  # Waits for config-server to be healthy before starting.
+
+  eureka-server:
+    <<: *spring-common
+    build:
+      context: ./eureka-server
+      dockerfile: ../Dockerfile
+    container_name: cropdeal-eureka-server
+    restart: unless-stopped
+    ports:
+      - "8761:8761"
+    environment:
+      SERVER_PORT: "8761"
+      SPRING_APPLICATION_NAME: eureka-server
+      SPRING_PROFILES_ACTIVE: default
+    depends_on:
+      config-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 40s
+
+  # ── Layer 3: Business Services ───────────────────────────
+  # All wait for eureka (which implies config-server is already healthy).
+
+  user-service:
+    <<: *spring-common
+    build:
+      context: ./user-service
+      dockerfile: ../Dockerfile
+    container_name: cropdeal-user-service
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      <<: *spring-env
+      SERVER_PORT: "8081"
+      SPRING_APPLICATION_NAME: user-service
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/cropdeal_users?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
+    depends_on:
+      <<: *depends-on-infra
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      <<: *business-healthcheck
+
+  crop-service:
+    <<: *spring-common
+    build:
+      context: ./crop-service
+      dockerfile: ../Dockerfile
+    container_name: cropdeal-crop-service
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      <<: *spring-env
+      SERVER_PORT: "8082"
+      SPRING_APPLICATION_NAME: crop-service
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/cropdeal_crops?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
+      SPRING_DATA_MONGODB_URI: "mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017/cropdeal_crops?authSource=admin"
+    depends_on:
+      <<: *depends-on-infra
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/actuator/health"]
+      <<: *business-healthcheck
+
+  order-service:
+    <<: *spring-common
+    build:
+      context: ./order-service
+      dockerfile: ../Dockerfile
+    container_name: cropdeal-order-service
+    restart: unless-stopped
+    ports:
+      - "8083:8083"
+    environment:
+      <<: *spring-env
+      SERVER_PORT: "8083"
+      SPRING_APPLICATION_NAME: order-service
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/cropdeal_orders?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
+    depends_on:
+      <<: *depends-on-infra
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/actuator/health"]
+      <<: *business-healthcheck
+
+  payment-service:
+    <<: *spring-common
+    build:
+      context: ./payment-service
+      dockerfile: ../Dockerfile
+    container_name: cropdeal-payment-service
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      <<: *spring-env
+      SERVER_PORT: "8084"
+      SPRING_APPLICATION_NAME: payment-service
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/cropdeal_payments?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
+    depends_on:
+      <<: *depends-on-infra
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/actuator/health"]
+      <<: *business-healthcheck
+
+  notification-service:
+    <<: *spring-common
+    build:
+      context: ./notification-service
+      dockerfile: ../Dockerfile
+    container_name: cropdeal-notification-service
+    restart: unless-stopped
+    ports:
+      - "8085:8085"
+    environment:
+      <<: *spring-env
+      SERVER_PORT: "8085"
+      SPRING_APPLICATION_NAME: notification-service
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/cropdeal_notifications?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
+      SPRING_MAIL_HOST: ${MAIL_HOST}
+      SPRING_MAIL_USERNAME: ${MAIL_USER}
+      SPRING_MAIL_PASSWORD: ${MAIL_PASS}
+    depends_on:
+      <<: *depends-on-infra
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/actuator/health"]
+      <<: *business-healthcheck
+
+  admin-service:
+    <<: *spring-common
+    build:
+      context: ./admin-service
+      dockerfile: ../Dockerfile
+    container_name: cropdeal-admin-service
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      <<: *spring-env
+      SERVER_PORT: "8086"
+      SPRING_APPLICATION_NAME: admin-service
+      SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/cropdeal_admin?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true"
+    depends_on:
+      <<: *depends-on-infra
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/actuator/health"]
+      <<: *business-healthcheck
+
+  # ── Layer 4: API Gateway ─────────────────────────────────
+  # Starts only after ALL business services are healthy so lb:// routes resolve.
+
+  api-gateway:
+    <<: *spring-common
+    build:
+      context: ./api-gateway
+      dockerfile: ../Dockerfile
+    container_name: cropdeal-api-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      SERVER_PORT: "8080"
+      SPRING_APPLICATION_NAME: api-gateway
+      SPRING_PROFILES_ACTIVE: prod
+      SPRING_CONFIG_IMPORT: "optional:configserver:http://config-server:8888"
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      EUREKA_INSTANCE_PREFERIPADDRESS: "true"
+      JWT_SECRET: ${JWT_SECRET}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
+    depends_on:
+      config-server:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      user-service:
+        condition: service_healthy
+      crop-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+      admin-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+
+  # ── Layer 5: Frontend ────────────────────────────────────
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cropdeal-frontend
+    restart: unless-stopped
+    networks:
+      - cropdeal-net
+    ports:
+      - "80:80"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+
+# ─────────────────────────────────────────────────────────────
+#  Volumes & Networks
+# ─────────────────────────────────────────────────────────────
+volumes:
+  mysql-data:
+  mongo-data:
+  rabbitmq-data:
+  redis-data:
+
+networks:
+  cropdeal-net:
+    driver: bridge

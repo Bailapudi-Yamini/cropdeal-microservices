@@ -1,0 +1,677 @@
+{
+  "info": {
+    "name": "CropDeal — Full Happy Path",
+    "_postman_id": "cropdeal-collection-v1",
+    "description": "Complete end-to-end test: register → login → crop → order → negotiate → payment → notifications → admin.\n\nImport alongside CropDeal.postman_environment.json.\n\nRun in order — each request auto-saves IDs/tokens for the next.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [],
+  "item": [
+    {
+      "name": "01 — Auth",
+      "item": [
+        {
+          "name": "01 Register Farmer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('success true', () => pm.expect(body.success).to.be.true);",
+                  "pm.collectionVariables.set('farmerEmail', pm.collectionVariables.get('farmerEmail') || 'farmer@cropdeal.test');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": "{{baseUrl}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Farmer\",\n  \"email\": \"farmer@cropdeal.test\",\n  \"password\": \"Password123!\",\n  \"role\": \"FARMER\",\n  \"phone\": \"9876543210\",\n  \"location\": \"Pune, Maharashtra\"\n}"
+            }
+          }
+        },
+        {
+          "name": "02 Register Dealer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('success true', () => pm.expect(body.success).to.be.true);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": "{{baseUrl}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Dealer\",\n  \"email\": \"dealer@cropdeal.test\",\n  \"password\": \"Password123!\",\n  \"role\": \"DEALER\",\n  \"phone\": \"9876543211\",\n  \"location\": \"Mumbai, Maharashtra\"\n}"
+            }
+          }
+        },
+        {
+          "name": "03 Register Admin",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": "{{baseUrl}}/api/auth/register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test Admin\",\n  \"email\": \"admin@cropdeal.test\",\n  \"password\": \"Password123!\",\n  \"role\": \"ADMIN\"\n}"
+            }
+          }
+        },
+        {
+          "name": "04 Login as Farmer → save farmerToken",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('has accessToken', () => pm.expect(body.data.accessToken).to.be.a('string'));",
+                  "pm.collectionVariables.set('farmerToken', body.data.accessToken);",
+                  "pm.collectionVariables.set('farmerId', body.data.userId);",
+                  "console.log('farmerToken saved:', body.data.accessToken.substring(0,20) + '...');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"farmer@cropdeal.test\",\n  \"password\": \"Password123!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "05 Login as Dealer → save dealerToken",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('has accessToken', () => pm.expect(body.data.accessToken).to.be.a('string'));",
+                  "pm.collectionVariables.set('dealerToken', body.data.accessToken);",
+                  "pm.collectionVariables.set('dealerId', body.data.userId);",
+                  "console.log('dealerToken saved:', body.data.accessToken.substring(0,20) + '...');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"dealer@cropdeal.test\",\n  \"password\": \"Password123!\"\n}"
+            }
+          }
+        },
+        {
+          "name": "06 Login as Admin → save adminToken",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.collectionVariables.set('adminToken', body.data.accessToken);",
+                  "pm.collectionVariables.set('adminId', body.data.userId);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Content-Type", "value": "application/json"}],
+            "url": "{{baseUrl}}/api/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@cropdeal.test\",\n  \"password\": \"Password123!\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 — Crops",
+      "item": [
+        {
+          "name": "07 Farmer Creates Crop Listing",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('has crop id', () => pm.expect(body.data.id).to.be.a('number'));",
+                  "pm.collectionVariables.set('cropListingId', body.data.id);",
+                  "pm.collectionVariables.set('cropPricePerUnit', body.data.pricePerUnit);",
+                  "console.log('cropListingId saved:', body.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{farmerToken}}"}
+            ],
+            "url": "{{baseUrl}}/api/crops",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cropName\": \"Tomato\",\n  \"cropType\": \"VEGETABLE\",\n  \"quantityAvailable\": 500,\n  \"unit\": \"kg\",\n  \"pricePerUnit\": 25.00,\n  \"location\": \"Pune, Maharashtra\",\n  \"description\": \"Fresh organic tomatoes, harvested this week\"\n}"
+            }
+          }
+        },
+        {
+          "name": "08 Dealer Browses Crops",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('has content array', () => pm.expect(body.data.content).to.be.an('array'));",
+                  "pm.test('at least 1 crop', () => pm.expect(body.data.content.length).to.be.at.least(1));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{dealerToken}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/crops?page=0&size=10",
+              "query": [
+                {"key": "page", "value": "0"},
+                {"key": "size", "value": "10"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "09 Dealer Subscribes to VEGETABLE",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201 or 200', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{dealerToken}}"}
+            ],
+            "url": "{{baseUrl}}/api/crops/subscriptions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cropType\": \"VEGETABLE\",\n  \"location\": \"Maharashtra\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 — Orders & Negotiation",
+      "item": [
+        {
+          "name": "10 Dealer Places Order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('has order id', () => pm.expect(body.data.id).to.be.a('number'));",
+                  "pm.collectionVariables.set('orderId', body.data.id);",
+                  "pm.collectionVariables.set('orderTotalAmount', body.data.totalAmount);",
+                  "console.log('orderId saved:', body.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{dealerToken}}"}
+            ],
+            "url": "{{baseUrl}}/api/orders",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cropListingId\": {{cropListingId}},\n  \"quantity\": 100\n}"
+            }
+          }
+        },
+        {
+          "name": "11 Farmer Views Incoming Orders",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('has orders', () => pm.expect(body.data.content).to.be.an('array'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{farmerToken}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/farmer?page=0&size=10",
+              "query": [
+                {"key": "page", "value": "0"},
+                {"key": "size", "value": "10"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "12 Farmer Counter-Offers (Negotiate)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('has negotiation id', () => pm.expect(body.data.id).to.be.a('number'));",
+                  "pm.collectionVariables.set('negotiationId', body.data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{farmerToken}}"}
+            ],
+            "url": "{{baseUrl}}/api/orders/{{orderId}}/negotiate",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"proposedPrice\": 22.00,\n  \"message\": \"I can offer a slight discount for bulk purchase\"\n}"
+            }
+          }
+        },
+        {
+          "name": "13 Dealer Accepts Farmer's Price",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('order CONFIRMED', () => pm.expect(body.data.status).to.equal('CONFIRMED'));",
+                  "pm.collectionVariables.set('orderTotalAmount', body.data.totalAmount);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{"key": "Authorization", "value": "Bearer {{dealerToken}}"}],
+            "url": "{{baseUrl}}/api/orders/{{orderId}}/accept"
+          }
+        },
+        {
+          "name": "14 Get Negotiation History",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('has negotiations array', () => pm.expect(body.data).to.be.an('array'));",
+                  "pm.test('at least 1 round', () => pm.expect(body.data.length).to.be.at.least(1));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{dealerToken}}"}],
+            "url": "{{baseUrl}}/api/orders/{{orderId}}/negotiations"
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 — Payments",
+      "item": [
+        {
+          "name": "15 Check Payment Status by Order ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('payment exists', () => pm.expect(body.data).to.have.property('id'));",
+                  "pm.test('status is INITIATED', () => pm.expect(body.data.status).to.equal('INITIATED'));",
+                  "pm.collectionVariables.set('paymentId', body.data.id);",
+                  "pm.collectionVariables.set('razorpayOrderId', body.data.razorpayOrderId || 'order_mock123');",
+                  "console.log('paymentId:', body.data.id, '| razorpayOrderId:', body.data.razorpayOrderId);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{dealerToken}}"}],
+            "url": "{{baseUrl}}/api/payments/order/{{orderId}}"
+          }
+        },
+        {
+          "name": "16 Verify Razorpay Payment (mock — will fail sig check)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Signature verification will fail with mock values — that is expected.",
+                  "// In real testing, use actual Razorpay test credentials and a real checkout.",
+                  "pm.test('Status 200 or 400', () => pm.expect(pm.response.code).to.be.oneOf([200, 400, 422]));",
+                  "const body = pm.response.json();",
+                  "console.log('Verify response:', JSON.stringify(body));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{dealerToken}}"}
+            ],
+            "url": "{{baseUrl}}/api/payments/verify",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderId\": {{orderId}},\n  \"razorpayOrderId\": \"{{razorpayOrderId}}\",\n  \"razorpayPaymentId\": \"pay_mock_test_123\",\n  \"razorpaySignature\": \"mock_signature_will_fail_intentionally\"\n}"
+            }
+          }
+        },
+        {
+          "name": "17 Dealer Views All Payments",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{dealerToken}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/payments/dealer?page=0&size=10",
+              "query": [
+                {"key": "page", "value": "0"},
+                {"key": "size", "value": "10"}
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 — Notifications",
+      "item": [
+        {
+          "name": "18 Dealer Checks Notifications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('has content', () => pm.expect(body.data.content).to.be.an('array'));",
+                  "pm.test('has unreadCount', () => pm.expect(body.data).to.have.property('unreadCount'));",
+                  "if (body.data.content.length > 0) {",
+                  "  pm.collectionVariables.set('notificationId', body.data.content[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{dealerToken}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications?page=0&size=10",
+              "query": [
+                {"key": "page", "value": "0"},
+                {"key": "size", "value": "10"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "19 Farmer Checks Notifications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{farmerToken}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/notifications?page=0&size=10",
+              "query": [
+                {"key": "page", "value": "0"},
+                {"key": "size", "value": "10"}
+              ]
+            }
+          }
+        },
+        {
+          "name": "20 Mark Single Notification Read",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Skip if no notification was saved",
+                  "if (!pm.collectionVariables.get('notificationId')) {",
+                  "  console.log('No notificationId — skipping');",
+                  "  return;",
+                  "}",
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Authorization", "value": "Bearer {{dealerToken}}"}],
+            "url": "{{baseUrl}}/api/notifications/{{notificationId}}/read"
+          }
+        },
+        {
+          "name": "21 Mark All Notifications Read",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [{"key": "Authorization", "value": "Bearer {{dealerToken}}"}],
+            "url": "{{baseUrl}}/api/notifications/read-all"
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 — Admin",
+      "item": [
+        {
+          "name": "22 Admin Dashboard Summary",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('has dashboard data', () => pm.expect(body.data).to.be.an('object'));",
+                  "console.log('Dashboard:', JSON.stringify(body.data));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}"}],
+            "url": "{{baseUrl}}/api/admin/reports/dashboard"
+          }
+        },
+        {
+          "name": "23 Admin Export Orders Excel",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Content-Type is Excel', () => {",
+                  "  const ct = pm.response.headers.get('Content-Type') || '';",
+                  "  pm.expect(ct).to.include('spreadsheet');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}"}],
+            "url": "{{baseUrl}}/api/admin/reports/orders/export"
+          }
+        },
+        {
+          "name": "24 Admin List Users",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{adminToken}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users?page=0&size=20",
+              "query": [
+                {"key": "page", "value": "0"},
+                {"key": "size", "value": "20"}
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {"key": "baseUrl",        "value": "http://localhost:8080"},
+    {"key": "farmerToken",    "value": ""},
+    {"key": "dealerToken",    "value": ""},
+    {"key": "adminToken",     "value": ""},
+    {"key": "farmerId",       "value": ""},
+    {"key": "dealerId",       "value": ""},
+    {"key": "adminId",        "value": ""},
+    {"key": "cropListingId",  "value": ""},
+    {"key": "orderId",        "value": ""},
+    {"key": "negotiationId",  "value": ""},
+    {"key": "paymentId",      "value": ""},
+    {"key": "razorpayOrderId","value": ""},
+    {"key": "notificationId", "value": ""}
+  ]
+}
